@@ -1,5 +1,7 @@
 # GhostClip
 
+[![Release](https://github.com/tanftw/ghostclip/actions/workflows/release.yml/badge.svg)](https://github.com/tanftw/ghostclip/actions/workflows/release.yml)
+
 A blazing-fast, lightweight, open-source clipboard manager for Linux. Replicates the Windows `Win + V` experience on Ubuntu/GNOME — without the bloat.
 
 Built with [Wails](https://wails.io) (Go + TypeScript), featuring a frameless always-on-top popup, real-time clipboard tracking, instant paste-on-select, and system tray integration. Designed for Wayland.
@@ -103,6 +105,14 @@ wails build -tags webkit2_41
 ```
 
 The binary is output to `build/bin/ghostclip`.
+
+### Replace the binary
+
+On development, you might want to replace running library when changed
+
+```bash
+pkill ghostclip; sleep 1; sudo cp build/bin/ghostclip /usr/local/bin/ghostclip; ghostclip &
+```
 
 ## Architecture
 

@@ -6,14 +6,54 @@ export function ClearHistory() {
   return window['go']['main']['App']['ClearHistory']();
 }
 
+export function DeleteClip(arg1) {
+  return window['go']['main']['App']['DeleteClip'](arg1);
+}
+
 export function GetClips() {
   return window['go']['main']['App']['GetClips']();
+}
+
+export function GetEditorText() {
+  return window['go']['main']['App']['GetEditorText']();
+}
+
+export function GetSnippetContent(arg1) {
+  return window['go']['main']['App']['GetSnippetContent'](arg1);
+}
+
+export function GetSnippetThumbnail(arg1) {
+  return window['go']['main']['App']['GetSnippetThumbnail'](arg1);
+}
+
+export function GetSnippets() {
+  return window['go']['main']['App']['GetSnippets']();
 }
 
 export function HideWindow() {
   return window['go']['main']['App']['HideWindow']();
 }
 
+export function PasteSnippetImage(arg1) {
+  return window['go']['main']['App']['PasteSnippetImage'](arg1);
+}
+
+export function PinClip(arg1) {
+  return window['go']['main']['App']['PinClip'](arg1);
+}
+
 export function SelectClip(arg1) {
   return window['go']['main']['App']['SelectClip'](arg1);
+}
+
+export function SelectSnippet(arg1) {
+  return window['go']['main']['App']['SelectSnippet'](arg1);
+}
+
+export function SetEditorText(arg1) {
+  return window['go']['main']['App']['SetEditorText'](arg1);
+}
+
+export function UnpinClip(arg1) {
+  return window['go']['main']['App']['UnpinClip'](arg1);
 }

@@ -7,8 +7,13 @@
 </head>
 <body>
 <div id="app">
+    <div class="title-bar">
+        <div class="title-bar-spacer"></div>
+        <button id="close-btn" class="close-btn" title="Hide">&#10005;</button>
+    </div>
     <div class="search-bar">
         <input type="text" id="search" placeholder="Search clips..." autocomplete="off" />
+        <button id="clear-all" class="clear-all-btn" title="Clear all clips">&#128465;</button>
     </div>
     <div id="clip-list" class="clip-list">
         <div id="empty-state" class="empty-state">

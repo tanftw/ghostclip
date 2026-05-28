@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -18,7 +19,15 @@ const socketPath = "/tmp/ghostclip.sock"
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "--toggle" {
-		sendToggle()
+		mode := ""
+		for _, arg := range os.Args[2:] {
+			if strings.HasPrefix(arg, "--mode=") {
+				mode = strings.TrimPrefix(arg, "--mode=")
+			} else if arg == "--mode" {
+				continue
+			}
+		}
+		sendToggle(mode)
 		return
 	}
 
@@ -31,12 +40,12 @@ func main() {
 
 	err := wails.Run(&options.App{
 		Title:  "GhostClip",
-		Width:  360,
+		Width:  540,
 		Height: 580,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour: &options.RGBA{R: 30, G: 30, B: 30, A: 1},
+		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 1},
 		OnStartup:        app.startup,
 		OnShutdown:       app.shutdown,
 		Frameless:        true,
@@ -62,13 +71,17 @@ func acquireLock() bool {
 	return true
 }
 
-func sendToggle() {
+func sendToggle(mode string) {
 	conn, err := net.Dial("unix", socketPath)
 	if err != nil {
 		fmt.Println("GhostClip is not running.")
 		os.Exit(1)
 	}
 	defer conn.Close()
-	conn.Write([]byte("toggle"))
+	msg := "toggle"
+	if mode != "" {
+		msg = "toggle:" + mode
+	}
+	conn.Write([]byte(msg))
 	fmt.Println("Toggle signal sent.")
 }

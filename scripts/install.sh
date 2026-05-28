@@ -15,7 +15,7 @@ fi
 
 echo "==> Installing dependencies..."
 apt-get update -qq 2>/dev/null || true
-apt-get install -y -qq xclip wl-clipboard ydotool 2>/dev/null
+apt-get install -y -qq xclip wl-clipboard ydotool xdotool 2>/dev/null
 
 echo "==> Downloading GhostClip..."
 ARCH=$(uname -m)
