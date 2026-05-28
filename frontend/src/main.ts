@@ -132,7 +132,6 @@ function render() {
         emojiQuery = query.slice(1).toLowerCase().trim()
         renderEmoji()
     } else if (mode === 'snippets') {
-        allSnippets = []
         renderSnippets(query.slice(1).toLowerCase().trim())
     }
 }
@@ -659,11 +658,16 @@ function selectCurrent() {
         }
     } else if (currentMode === 'snippets') {
         if (filteredSnippets.length > 0 && selectedIndex < filteredSnippets.length) {
-            GetSnippetContent(filteredSnippets[selectedIndex].name).then((content: string) => {
-                if (content) {
-                    SelectSnippet(content).catch((err: unknown) => console.error('SelectSnippet failed:', err))
-                }
-            })
+            const snippet = filteredSnippets[selectedIndex]
+            if (snippet.isImage) {
+                PasteSnippetImage(snippet.name).catch((err: unknown) => console.error('PasteSnippetImage failed:', err))
+            } else {
+                GetSnippetContent(snippet.name).then((content: string) => {
+                    if (content) {
+                        SelectSnippet(content).catch((err: unknown) => console.error('SelectSnippet failed:', err))
+                    }
+                })
+            }
         }
     }
 }

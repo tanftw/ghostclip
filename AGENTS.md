@@ -1,60 +1,160 @@
 # AGENTS.md - Project Specification: GhostClip
 
 ## Project Overview
-GhostClip is a blazing-fast, lightweight, open-source clipboard manager designed for Linux (Ubuntu/GNOME focus) with easy extensibility to macOS. It aims to completely replicate the core UX of Windows + V (`Win + V`) without the bloat, legacy UI patterns, or massive RAM footprints of tools like Electron or CopyQ.
+GhostClip is a blazing-fast, lightweight, open-source clipboard manager designed for Linux (Ubuntu/GNOME focus) with easy extensibility to macOS. It replicates the Win+V experience — a borderless popup that appears instantly, lets you search and select a clip, then pastes it and disappears.
 
 ## Technical Stack & Constraints
 - **Core Framework:** Wails v2.12.0 (Stable Release)
 - **Backend Language:** Go (Golang)
-- **Frontend Stack:** Vanilla TypeScript + Vite + Tailwind CSS (No heavy UI frameworks)
-- **Operating System Baseline:** Ubuntu (GNOME Desktop Environment utilizing Wayland by default)
+- **Frontend Stack:** Vanilla TypeScript + Vite + Tailwind CSS 4 (No heavy UI frameworks)
+- **Operating System Baseline:** Ubuntu 26.04 LTS, GNOME 50.1, Wayland
+- **Build Tag:** `webkit2_41` (Ubuntu 26.04 only has webkit2gtk-4.1)
+- **Package Manager:** `pnpm` (not npm)
 - **Design Paradigm:** Invisible background service that invokes a borderless modal instantly upon hotkey command.
 
 ---
 
-## Technical Specifications & Architecture
+## Architecture
 
-### 1. Window Configuration (`main.go`)
-The main Wails application instance must be customized to act like a floating utility panel rather than a standard desktop app.
-- **Frameless:** Set `Frame: false` to remove window title bars, resize handles, and native system borders.
-- **Always On Top:** Set `AlwaysOnTop: true` so it overlays active focus applications.
-- **Initial State:** Must boot completely silent with `Hidden: true`. The UI should not visually flash on system startup.
-- **Sizing:** Fixed dimensions optimized for vertically scannable text snippets (Recommended: `Width: 360`, `Height: 580`).
+### File Structure
+```
+main.go              — Window config, single-instance lock, CLI arg parsing (--toggle, --mode)
+app.go               — Clipboard engine, paste logic, snippets, pins, persistence, snippet variables, image thumbnails
+tray.go              — System tray via fyne.io/systray (Show/Clear/Quit)
+frontend/src/main.ts — All mode UIs, keyboard navigation, event handling
+frontend/src/style.css — Dark theme, all component styles
+frontend/src/emojis.ts — Emoji dataset (9 categories, ~1500 emojis)
+frontend/index.html  — HTML shell with search bar, close button, clear all
+scripts/install.sh   — One-line installer (deps + binary + autostart + tray icon)
+scripts/uninstall.sh — Clean uninstaller
+.github/workflows/release.yml — CI/CD for tag-based releases (ubuntu-24.04 runner, Go 1.24)
+docs.md              — Full feature documentation
+```
 
-### 2. Clipboard Polling Engine (`app.go`)
-Because modern Linux display servers (Wayland) isolate clipboard boundaries, a highly optimized background execution routine is mandatory.
-- Implement an unblocking `goroutine` during the `OnStartup` hook lifecycle.
-- Poll the system clipboard using Wails native runtime utility `runtime.ClipboardGetText(ctx)` every 300–400ms.
-- **De-duplication:** Prevent infinite cycles by storing the `lastCopied` string value. Do not push changes to the frontend if the clipboard item is identical to the current index 0 slot.
-- **Memory Cap:** Limit total in-memory slice arrays to the last 50 entries to safeguard RAM.
+### Window Configuration (`main.go`)
+- **Frameless:** `Frame: false` — no title bars, resize handles, or native borders
+- **Always On Top:** `AlwaysOnTop: true` — overlays active applications
+- **Hidden Start:** `StartHidden: true` — boots silently, no visual flash
+- **Sizing:** 540×580, `BackgroundColour: {R:0, G:0, B:0, A:1}` with `#app` as lighter inner container
+- **Single Instance:** Unix socket at `/tmp/ghostclip.sock` — second instance sends toggle signal and exits
+- **CLI Args:** `ghostclip --toggle` (default mode), `ghostclip --toggle --mode=editor|emoji|snippets|clipboard`
 
-### 3. Wayland-Compliant Global Hotkey Engine
-Wayland strictly blocks standard global input sniffers out-of-the-box for security. To ensure 100% operation on Ubuntu, the agent must implement **two concurrent toggle paths**:
+### Clipboard Engine (`app.go`)
+- Polls via `xclip -selection clipboard -o` every 300ms (not `wl-paste` — causes GNOME UI flickering)
+- Writes via `wl-copy` for pasting
+- Auto-paste via `ydotool key 42:1 110:1 110:0 42:0` (Shift+Insert — works in terminals and GUI apps)
+- **De-duplication:** Stores `lastCopied` string, skips identical reads
+- **Memory Cap:** 50 entries max for clips, 50 for pinned
+- Emits `"clipboard_updated"` event with `{clips: [...], pinned: [...]}`
 
-- **Path A (Internal Hook):** Bind an internal global key listener package (e.g., `github.com/robotn/hook`) to catch `Ctrl + Alt + V`.
-- **Path B (CLI Argument Fallback):** Implement a single-instance CLI argument parser in `main.go`. If a user calls `ghostclip --toggle` while the app is already running, the secondary instance must safely signal the primary running instance to alternate visibility (`runtime.WindowShow` / `runtime.WindowHide`) and exit immediately. This allows users to map a native custom shortcut inside Ubuntu Settings straight to the binary.
+### Toggle & Mode System
+- `listenForToggle()` reads `"toggle"` or `"toggle:<mode>"` from Unix socket
+- `toggleWindowWithMode(mode)` positions window at cursor via `xdotool getmouselocation`, shows window, emits `"set_mode"` event
+- Frontend listens for `"set_mode"` and sets search prefix (`#`, `!`, `@`, or empty)
 
-### 4. Frontend Requirements (`frontend/src/`)
-- **Visual Feel:** Use Tailwind CSS to craft a dark, sleek design matching modern GNOME Shell (Libadwaita scheme). Cards must have subtle hover states and focus rings.
-- **Truncation:** Safely handle massive clip walls by truncating text previews inside cards after 120 characters with trailing ellipses (`...`).
-- **Communication:** Leverage `runtime.EventsOn` to consume `"clipboard_updated"` payloads reactively.
+### Persistence
+- Saves to `~/.config/ghostclip/history.json` on shutdown, pin/unpin/delete, and editor changes (debounced 500ms)
+- Restores clips, pinned clips, lastCopied, and editor text on startup
+- Structure: `{"clips": [...], "pinned": [...], "lastCopied": "...", "editorText": "..."}`
 
 ---
 
-## Core Feature Requirements (Backlog)
+## Modes (Search Prefix Switcher)
 
-- [ ] **Background Initialization:** Boots straight into hidden tray status without user interaction.
-- [ ] **Reactive Event Binding:** When text is caught in Go, it must instantly flow into JS/TS layout state without manual page refreshes.
-- [ ] **Selection/Paste Insertion Execution:** Clicking a card triggers `runtime.ClipboardSetText()`, updates the local backend `lastCopied` memory reference to prevent infinite recording loops, and fires `runtime.WindowHide()`.
-- [ ] **Sanitization:** Strips empty strings, massive structural duplicate items, or zero-byte payloads from filling up the cache array.
+| Prefix | Mode | Description |
+|---|---|---|
+| *(none)* | Clipboard | Browse/search clipboard history with pinned section |
+| `#` | Editor | Multiline scratch pad with undo/redo |
+| `!` | Emoji | ~1500 emojis, 9 categories, keyword search, recent history |
+| `@` | Snippets | Text files and images from `~/Snippets` or `~/Documents/Snippets` |
 
 ---
 
-## Agent Step-by-Step Implementation Instructions
+## Feature Details
 
-1. Run `wails init -n ghostclip -t vanilla-ts` to set up the clean base project structure.
-2. Install Tailwind CSS inside the `frontend/` directory and tie it directly into the Vite compilation pipe.
-3. Configure `main.go` using the explicit single-instance option parameters and disable title bars (`Frame: false`).
-4. Build the `watchClipboard` loop engine using Go routines inside `app.go`. Ensure memory storage constraints are respected.
-5. Create UI click bindings to pipe select texts back down to the target system clip registers.
-6. Test using `wails dev` to confirm clipboard tracking and window toggle speeds.
+### Clipboard Mode
+- Search: filter by content or jump to `#N` by number
+- Hover actions: Edit (pencil), Pin (pin icon), Delete (x)
+- Pinned clips: gold left border, separate "Pinned" section, never evicted by 50-cap, survive restarts
+- Clear All: clears unpinned only, pinned preserved
+- Keyboard: Arrow Up/Down, Enter, Escape, Ctrl+K
+
+### Editor Mode (`#`)
+- Multiline textarea with monospace font
+- **Ctrl+Enter** = paste content (uses `e.stopPropagation()` to prevent document handler interference)
+- **Ctrl+Z** = undo, **Ctrl+Shift+Z / Ctrl+Y** = redo (100-state stack)
+- **Ctrl+K** = focus search bar (handled before editor early-return guard)
+- Content persisted to `history.json`, restored on startup
+- Edit-before-paste: pencil icon on clip card loads text into editor
+- Footer: character count, line count, undo depth
+
+### Emoji Mode (`!`)
+- 9 category tabs with icon buttons
+- Keyword search across all categories
+- Recent history (last 24) stored in `localStorage` key `ghostclip-emoji-recent`
+
+### Snippets Mode (`@`)
+- Scans `~/Snippets` and `~/Documents/Snippets` recursively
+- **Text files:** up to 512KB, 120-char preview, binary files skipped
+- **Image files:** up to 10MB, supports jpg/jpeg/png/gif/bmp/webp/svg/ico/tiff
+- Image snippets: 48×48 thumbnail via base64 data URI (`GetSnippetThumbnail`), `wl-copy --type <mime>` for pasting
+- Snippet variables expanded at paste time: `{{date}}`, `{{time}}`, `{{datetime}}`, `{{timestamp}}`, `{{clipboard}}`, `{{user}}`
+- Rescan on window open (focus event) and `set_mode` event — NOT on every render/navigation
+- `selectCurrent()` checks `snippet.isImage` to call `PasteSnippetImage` vs `GetSnippetContent`+`SelectSnippet`
+
+---
+
+## Keyboard Shortcuts
+
+| Shortcut | Context | Action |
+|---|---|---|
+| Super+V | Global | `ghostclip --toggle` (clipboard) |
+| Super+/ | Global | `ghostclip --toggle --mode=editor` |
+| Super+E | Global | `ghostclip --toggle --mode=emoji` |
+| Super+S | Global | `ghostclip --toggle --mode=snippets` |
+| Escape | Any mode | Close popup |
+| Ctrl+K | Any mode (including editor) | Focus search bar |
+| Arrow Up/Down | Clipboard/Emoji/Snippets | Navigate items |
+| Enter | Clipboard/Emoji/Snippets | Paste selected item |
+| Ctrl+Enter | Editor | Paste editor content |
+| Ctrl+Z | Editor | Undo |
+| Ctrl+Shift+Z / Ctrl+Y | Editor | Redo |
+
+---
+
+## System Requirements & Dependencies
+- **OS:** Ubuntu 22.04+ (GNOME/Wayland)
+- **Runtime deps:** `xclip`, `wl-clipboard`, `ydotool`, `xdotool`
+- **ydotoold** runs as user-level systemd service, socket at `/run/user/$UID/.ydotool_socket`
+- **User must be in `input` group** for ydotool access (log out/in after install)
+- Install: `curl -fsSL https://raw.githubusercontent.com/tanftw/ghostclip/master/scripts/install.sh | sudo bash`
+
+---
+
+## Build & Release
+- Build: `wails build -tags webkit2_41` (binary at `build/bin/ghostclip`)
+- Dev: `wails dev -tags webkit2_41`
+- Release: tag-based GitHub Actions workflow on `ubuntu-24.04` runner, Go 1.24
+- GitHub repo: https://github.com/tanftw/ghostclip (default branch: `master`)
+- Binary released as `ghostclip-amd64`
+
+---
+
+## Key Technical Decisions
+- `xclip` over `wl-paste` for reading — wl-paste caused GNOME UI flickering, xclip via XWayland does not
+- `wl-paste -w` (watch mode) doesn't work on GNOME (requires wlroots data-control protocol)
+- `wtype` doesn't work on GNOME (no zwp_virtual_keyboard support)
+- Shift+Insert over Ctrl+V — works consistently in both terminals and GUI apps
+- `ydotool` key codes: Shift=42, Insert=110
+- Position numbers preserved during search filtering (original index maintained)
+- Emoji recent history in `localStorage` (not filesystem)
+- `StartHidden` (not `Hidden` field) — Wails v2 API
+- No `WindowToggle` in Wails v2 — must use `WindowShow/WindowHide` manually
+- Editor textarea uses `e.stopPropagation()` on Ctrl+Enter to prevent document handler from firing after mode changes
+- Ctrl+K handler placed BEFORE editor early-return guard in document keydown handler
+
+---
+
+## Known Limitations
+- True rounded window corners impossible on GNOME Wayland (no window transparency support in WebKitGTK)
+- Window position clamps to 1920×1080 bounds — should ideally detect actual screen size
