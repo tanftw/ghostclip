@@ -40,6 +40,8 @@ echo "==> Enabling ydotool service..."
 SUDO_UID=$(id -u "${SUDO_USER:-$USER}")
 sudo -u "${SUDO_USER:-$USER}" XDG_RUNTIME_DIR="/run/user/${SUDO_UID}" \
     systemctl --user enable ydotool 2>/dev/null || true
+sudo -u "${SUDO_USER:-$USER}" XDG_RUNTIME_DIR="/run/user/${SUDO_UID}" \
+    systemctl --user start ydotool 2>/dev/null || true
 
 echo "==> Creating desktop entry..."
 cat > "$DESKTOP_FILE" <<EOF
@@ -63,7 +65,13 @@ cp "$DESKTOP_FILE" "${AUTOSTART_DIR}/${BINARY}.desktop"
 chown -R "${SUDO_USER:-$USER}" "$AUTOSTART_DIR"
 
 echo ""
-echo "==> GhostClip v${LATEST} installed successfully!"
+echo "==> Starting GhostClip..."
+sudo -u "${SUDO_USER:-$USER}" XDG_RUNTIME_DIR="/run/user/${SUDO_UID}" \
+    nohup "${INSTALL_DIR}/${BINARY}" > /dev/null 2>&1 &
+sleep 1
+
+echo ""
+echo "==> GhostClip v${LATEST} installed and running!"
 echo ""
 echo "To set up the keyboard shortcut:"
 echo "  1. Open GNOME Settings → Keyboard → Custom Shortcuts"
