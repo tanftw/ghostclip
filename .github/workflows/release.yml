@@ -10,13 +10,13 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26'
+          go-version: '1.24'
 
       - uses: pnpm/action-setup@v4
         with:
@@ -32,7 +32,7 @@ jobs:
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
 
       - name: Build
-        run: wails build -tags webkit2_41
+        run: $(go env GOPATH)/bin/wails build -tags webkit2_41
 
       - name: Upload release
         uses: softprops/action-gh-release@v2
