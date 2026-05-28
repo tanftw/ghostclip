@@ -14,8 +14,8 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 echo "==> Installing dependencies..."
-apt-get update -qq
-apt-get install -y -qq xclip wl-clipboard ydotool > /dev/null
+apt-get update -qq 2>/dev/null || true
+apt-get install -y -qq xclip wl-clipboard ydotool 2>/dev/null
 
 echo "==> Downloading GhostClip..."
 ARCH=$(uname -m)
@@ -37,7 +37,8 @@ echo "==> Setting up user permissions for ydotool..."
 usermod -aG input "${SUDO_USER:-$USER}" 2>/dev/null || true
 
 echo "==> Enabling ydotool service..."
-sudo -u "${SUDO_USER:-$USER}" XDG_RUNTIME_DIR="/run/user/$(id -u "${SUDO_USER:-$USER}")" \
+SUDO_UID=$(id -u "${SUDO_USER:-$USER}")
+sudo -u "${SUDO_USER:-$USER}" XDG_RUNTIME_DIR="/run/user/${SUDO_UID}" \
     systemctl --user enable ydotool 2>/dev/null || true
 
 echo "==> Creating desktop entry..."

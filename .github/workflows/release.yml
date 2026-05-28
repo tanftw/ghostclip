@@ -34,8 +34,11 @@ jobs:
       - name: Build
         run: $(go env GOPATH)/bin/wails build -tags webkit2_41
 
+      - name: Rename binary
+        run: mv build/bin/ghostclip build/bin/ghostclip-amd64
+
       - name: Upload release
         uses: softprops/action-gh-release@v2
         with:
-          files: build/bin/ghostclip
+          files: build/bin/ghostclip-amd64
           generate_release_notes: true
