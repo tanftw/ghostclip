@@ -44,6 +44,16 @@ sudo -u "${SUDO_USER:-$USER}" XDG_RUNTIME_DIR="/run/user/${SUDO_UID}" \
     systemctl --user start ydotool 2>/dev/null || true
 
 echo "==> Creating desktop entry..."
+ICON_DIR="/usr/share/icons/hicolor/256x256/apps"
+mkdir -p "$ICON_DIR"
+TMPFILE_ICON=$(mktemp /tmp/ghostclip-icon.XXXXXX.png)
+curl -fsSL "https://raw.githubusercontent.com/${REPO}/master/build/appicon.png" -o "$TMPFILE_ICON"
+if [ -s "$TMPFILE_ICON" ]; then
+    mv "$TMPFILE_ICON" "${ICON_DIR}/${BINARY}.png"
+else
+    rm -f "$TMPFILE_ICON"
+fi
+
 cat > "$DESKTOP_FILE" <<EOF
 [Desktop Entry]
 Name=GhostClip

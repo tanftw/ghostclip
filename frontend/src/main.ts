@@ -107,6 +107,14 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
                 console.error('SelectClip failed:', err)
             })
         }
+    } else if (/^[1-9]$/.test(e.key) && e.target !== searchInput) {
+        const idx = parseInt(e.key) - 1
+        if (idx < filteredClips.length) {
+            e.preventDefault()
+            SelectClip(filteredClips[idx]).catch((err: unknown) => {
+                console.error('SelectClip failed:', err)
+            })
+        }
     }
 })
 
