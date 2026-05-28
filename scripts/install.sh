@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="user/ghostclip"
+REPO="tanftw/ghostclip"
 BINARY="ghostclip"
 INSTALL_DIR="/usr/local/bin"
 DESKTOP_FILE="/usr/share/applications/${BINARY}.desktop"
